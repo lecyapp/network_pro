@@ -56,16 +56,13 @@ public class NetworkProPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             }
         }
         
-        // Alternative method using System Configuration
+        // Alternative method using resolv.conf (iOS fallback)
         if dnsServers.isEmpty {
-            let dynamicStore = SCDynamicStoreCreate(nil, "network_pro" as CFString, nil, nil)
-            if let dnsSettings = SCDynamicStoreCopyValue(dynamicStore, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
-                if let servers = dnsSettings["ServerAddresses"] as? [String] {
-                    dnsServers = servers
-                }
-                if let domains = dnsSettings["SearchDomains"] as? [String] {
-                    searchDomains = domains
-                }
+            // On iOS, we can try to get DNS info from system proxy settings
+            if let cfDict = CFNetworkCopySystemProxySettings() {
+                let nsDict = cfDict.takeRetainedValue() as NSDictionary
+                // Note: DNS info is not directly available through proxy settings
+                // This is a limitation on iOS - DNS configuration is not directly accessible
             }
         }
         
@@ -103,24 +100,22 @@ public class NetworkProPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         if isConnected {
             status = "connected"
             
-            // Try to get VPN configuration details
-            let dynamicStore = SCDynamicStoreCreate(nil, "network_pro" as CFString, nil, nil)
+            // Try to get VPN configuration details using iOS-compatible methods
+            // Note: Detailed VPN configuration access is limited on iOS for security reasons
             
-            // Check IPSec
-            if let ipsecSettings = SCDynamicStoreCopyValue(dynamicStore, "State:/Network/Service/[^/]+/IPSec" as CFString) as? [String: Any] {
-                vpnProtocol = "IPSec"
-                if let remoteAddress = ipsecSettings["RemoteAddress"] as? String {
-                    serverAddress = remoteAddress
-                }
-            }
-            
-            // Check PPP (for PPTP/L2TP)
-            if let pppSettings = SCDynamicStoreCopyValue(dynamicStore, "State:/Network/Service/[^/]+/PPP" as CFString) as? [String: Any] {
-                if vpnProtocol == nil {
-                    vpnProtocol = "PPP"
-                }
-                if let commRemoteAddress = pppSettings["CommRemoteAddress"] as? String {
-                    serverAddress = commRemoteAddress
+            // Use NEVPNManager to get basic VPN info
+            let vpnManager = NEVPNManager.shared()
+            if let vpnConnection = vpnManager.protocolConfiguration {
+                if vpnConnection is NEVPNProtocolIKEv2 {
+                    vpnProtocol = "IKEv2"
+                    if let ikev2 = vpnConnection as? NEVPNProtocolIKEv2 {
+                        serverAddress = ikev2.serverAddress
+                    }
+                } else if vpnConnection is NEVPNProtocolIPSec {
+                    vpnProtocol = "IPSec"
+                    if let ipsec = vpnConnection as? NEVPNProtocolIPSec {
+                        serverAddress = ipsec.serverAddress
+                    }
                 }
             }
             
@@ -258,29 +253,16 @@ struct DNS {
 
 class DNSResolver {
     var nameservers: [String]? {
-        var servers: [String] = []
-        
-        let dynamicStore = SCDynamicStoreCreate(nil, "network_pro" as CFString, nil, nil)
-        if let dnsSettings = SCDynamicStoreCopyValue(dynamicStore, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
-            if let serverAddresses = dnsSettings["ServerAddresses"] as? [String] {
-                servers = serverAddresses
-            }
-        }
-        
-        return servers.isEmpty ? nil : servers
+        // On iOS, DNS server information is not directly accessible
+        // due to system security restrictions
+        // We can only get limited network information
+        return nil
     }
     
     var searchDomains: [String]? {
-        var domains: [String] = []
-        
-        let dynamicStore = SCDynamicStoreCreate(nil, "network_pro" as CFString, nil, nil)
-        if let dnsSettings = SCDynamicStoreCopyValue(dynamicStore, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
-            if let searchDomains = dnsSettings["SearchDomains"] as? [String] {
-                domains = searchDomains
-            }
-        }
-        
-        return domains.isEmpty ? nil : domains
+        // On iOS, DNS search domains are not directly accessible
+        // due to system security restrictions
+        return nil
     }
 }
 
