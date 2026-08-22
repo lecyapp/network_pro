@@ -27,7 +27,7 @@ apply plugin: 'kotlin-android'
 android {
     namespace "cc.lecy.network_pro"
 
-    compileSdkVersion 33
+    compileSdk 36
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -44,7 +44,7 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 24
     }
 
     dependencies {
